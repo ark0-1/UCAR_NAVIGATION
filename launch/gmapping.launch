@@ -1,0 +1,123 @@
+<launch>
+    <arg name="use_lidar" default="true"/>
+    <arg name="use_base_driver" default="true"/>
+    <arg name="use_sensor_tf_server" default="false"/>
+    <arg name="use_keyboard_teleop" default="true"/>
+
+    <arg name="scan_topic" default="/scan"/>
+    <arg name="map_frame" default="map"/>
+    <arg name="odom_frame" default="odom"/>
+    <arg name="base_frame" default="base_link"/>
+
+    <arg name="map_update_interval" default="1.0"/>
+    <arg name="transform_publish_period" default="0.05"/>
+    <arg name="throttle_scans" default="1"/>
+
+    <arg name="max_range" default="6.0"/>
+    <arg name="max_usable_range" default="5.5"/>
+    <arg name="minimum_score" default="100"/>
+
+    <arg name="sigma" default="0.05"/>
+    <arg name="kernel_size" default="1"/>
+    <arg name="lstep" default="0.05"/>
+    <arg name="astep" default="0.05"/>
+    <arg name="iterations" default="5"/>
+    <arg name="lsigma" default="0.075"/>
+    <arg name="ogain" default="3.0"/>
+    <arg name="lskip" default="0"/>
+
+    <arg name="srr" default="0.05"/>
+    <arg name="srt" default="0.05"/>
+    <arg name="str" default="0.05"/>
+    <arg name="stt" default="0.05"/>
+
+    <arg name="linear_update" default="0.1"/>
+    <arg name="angular_update" default="0.05"/>
+    <arg name="temporal_update" default="1.0"/>
+    <arg name="resample_threshold" default="0.5"/>
+    <arg name="particles" default="50"/>
+
+    <arg name="xmin" default="-10.0"/>
+    <arg name="ymin" default="-10.0"/>
+    <arg name="xmax" default="10.0"/>
+    <arg name="ymax" default="10.0"/>
+    <arg name="delta" default="0.025"/>
+
+    <arg name="llsamplerange" default="0.01"/>
+    <arg name="llsamplestep" default="0.01"/>
+    <arg name="lasamplerange" default="0.005"/>
+    <arg name="lasamplestep" default="0.005"/>
+
+    <!-- 雷达 -->
+    <include if="$(arg use_lidar)" file="$(find ydlidar)/launch/ydlidar.launch" />
+
+    <!-- 底盘里程计 -->
+    <include if="$(arg use_base_driver)" file="$(find ucar_controller)/launch/base_driver.launch"/>
+
+    <!-- 只保留一处 TF 发布，激光/相机/IMU 外统一由 tf_server 管理。 -->
+    <!-- <include if="$(arg use_sensor_tf_server)" file="$(find ucar_controller)/launch/tf_server.launch"/> -->
+    <include file="$(find ucar_controller)/launch/tf_server.launch"/>
+
+    <!-- 建图时默认保留键盘遥控，实车若已有上位机发 cmd_vel 可关闭 -->
+    <include if="$(arg use_keyboard_teleop)" file="$(find ep_teleop)/launch/keyboard.launch"/>
+    <!--大写控制 
+    I：前进（Forward）
+    <（Shift + ,）：后退（Backward）
+    J：左平移（Strafe Left）
+    L：右平移（Strafe Right）
+    U：左前
+    O：右前
+    M：左后
+    >（Shift + .）：右后
+    K：停止（Stop） -->
+
+    <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen" clear_params="true">
+        <param name="map_frame" value="$(arg map_frame)"/>
+        <param name="odom_frame" value="$(arg odom_frame)"/>
+        <param name="base_frame" value="$(arg base_frame)"/>
+
+        <param name="map_update_interval" value="$(arg map_update_interval)"/>
+        <param name="transform_publish_period" value="$(arg transform_publish_period)"/>
+        <param name="throttle_scans" value="$(arg throttle_scans)"/>
+
+        <!-- 16m 雷达在室内远距离点噪声更重，建图阶段先限制到中近距离更稳 -->
+        <param name="maxRange" value="$(arg max_range)"/>
+        <param name="maxUrange" value="$(arg max_usable_range)"/>
+        <param name="minimumScore" value="$(arg minimum_score)"/>
+
+        <param name="sigma" value="$(arg sigma)"/>
+        <param name="kernelSize" value="$(arg kernel_size)"/>
+        <param name="lstep" value="$(arg lstep)"/>
+        <param name="astep" value="$(arg astep)"/>
+        <param name="iterations" value="$(arg iterations)"/>
+        <param name="lsigma" value="$(arg lsigma)"/>
+        <param name="ogain" value="$(arg ogain)"/>
+        <param name="lskip" value="$(arg lskip)"/>
+
+        <param name="srr" value="$(arg srr)"/>
+        <param name="srt" value="$(arg srt)"/>
+        <param name="str" value="$(arg str)"/>
+        <param name="stt" value="$(arg stt)"/>
+
+        <!-- 小车转弯半径小，缩小触发阈值有助于拐角处更及时地插入扫描 -->
+        <param name="linearUpdate" value="$(arg linear_update)"/>
+        <param name="angularUpdate" value="$(arg angular_update)"/>
+        <param name="temporalUpdate" value="$(arg temporal_update)"/>
+        <param name="resampleThreshold" value="$(arg resample_threshold)"/>
+        <param name="particles" value="$(arg particles)"/>
+
+        <!-- 提前给足初始地图边界，减少频繁扩图带来的抖动和开销 -->
+        <param name="xmin" value="$(arg xmin)"/>
+        <param name="ymin" value="$(arg ymin)"/>
+        <param name="xmax" value="$(arg xmax)"/>
+        <param name="ymax" value="$(arg ymax)"/>
+        <param name="delta" value="$(arg delta)"/>
+
+        <param name="llsamplerange" value="$(arg llsamplerange)"/>
+        <param name="llsamplestep" value="$(arg llsamplestep)"/>
+        <param name="lasamplerange" value="$(arg lasamplerange)"/>
+        <param name="lasamplestep" value="$(arg lasamplestep)"/>
+
+        <remap from="scan" to="$(arg scan_topic)"/>
+    </node>
+</launch>

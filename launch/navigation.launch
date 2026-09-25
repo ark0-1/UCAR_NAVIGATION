@@ -1,0 +1,15 @@
+<launch>
+
+    <!-- 雷达 -->
+    <include file="$(find ydlidar)/launch/ydlidar.launch" />
+
+    <!-- 导航 -->
+    <include file="$(find ucar_controller)/launch/base_driver.launch"/>
+    <include file="$(find ucar_controller)/launch/tf_server.launch"/>
+    <include file="$(find ucar_localization)/launch/scan_to_map_location.launch"/>    
+    <include file="$(find ucar_navigation)/launch/move_base.launch"/> 
+
+    <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find ucar_navigation)/rviz/nav_rviz.rviz" required="false">
+    </node> -->
+
+</launch>

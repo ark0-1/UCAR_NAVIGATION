@@ -2,9 +2,9 @@
 <package format="2">
   <name>ucar_navigation</name>
   <version>0.0.0</version>
-  <description>The ucar_navigation package</description>
+  <description>基于 move_base 与 teb_local_planner 的导航配置包，提供建图与导航的 launch、参数、地图与 RViz 配置。</description>
 
-  <maintainer email="yawara@todo.todo">yawara</maintainer>
+  <maintainer email="2671882038@qq.com">ark0-1</maintainer>
 
   <license>TODO</license>
   <buildtool_depend>catkin</buildtool_depend>

@@ -6,7 +6,7 @@
 
 - **建图** — gmapping + 键盘遥控，参数针对室内雷达场景调优（限制远距离噪声、缩小更新阈值）
 - **导航** — `move_base` + `teb_local_planner`，兼容 amcl / ICP 两种定位来源
-- **多规划器切换** — 通过 `method` 参数一键切换 teb / dwa / eband / pid / mpc
+- **规划器** — 局部规划固定 `teb_local_planner`，全局规划固定 `global_planner/GlobalPlanner`
 - **代价地图** — 按机器人 footprint 与膨胀半径配置，局部地图使用滚动窗口
 
 ## 依赖
@@ -37,7 +37,7 @@ ucar_navigation/
 │   ├── gmapping.launch     # 建图
 │   └── move_base.launch    # 仅 move_base + map_server
 ├── config/
-│   └── teb/                # 规划器参数（目录名对应 method 参数）
+│   └── teb/                # 局部规划器参数（固定使用 TEB）
 │       ├── move_base_params.yaml
 │       ├── costmap_common_params.yaml
 │       ├── global_costmap_params.yaml
@@ -87,10 +87,14 @@ roslaunch ucar_navigation navigation.launch
 ### 仅启动 move_base
 
 ```bash
-roslaunch ucar_navigation move_base.launch method:=teb
+roslaunch ucar_navigation move_base.launch
 ```
 
-`method` 决定两件事：加载 `config/<method>/` 下的参数，以及选择对应的局部规划器插件。launch 的 doc 列出 `teb` / `dwa` / `eband` / `pid` / `mpc`，但仓库中只提供了 `config/teb/`，**当前实际只能传 `teb`**（详见「已知问题」）。全局规划器固定为 `global_planner/GlobalPlanner`。
+局部规划器固定为 `teb_local_planner/TebLocalPlannerROS`，参数一律加载 `config/teb/`；全局规划器固定为 `global_planner/GlobalPlanner`。可覆盖的参数只有话题名：
+
+```bash
+roslaunch ucar_navigation move_base.launch cmd_vel_topic:=/cmd_vel odom_topic:=/odom
+```
 
 ## 地图文件
 
@@ -143,11 +147,9 @@ roslaunch ucar_navigation move_base.launch method:=teb
 
 以下问题在阅读代码时发现，尚未修改，列在这里供参考：
 
-1. **`method` 参数声称支持 5 种规划器，实际只有 `teb` 可用** — `move_base.launch` 中 `method` 的 doc 列出 `mpc, pid, teb, eband, dwa`，参数按 `config/$(arg method)/` 加载；但 `config/` 下只有 `teb/` 一个目录。传其他值会因找不到参数文件而启动失败。要么补齐各规划器的参数目录，要么把 doc 收窄到实际支持的范围。
+1. **`move_base.launch` 中 `local_planner_params` 参数未被使用** — 该 arg 已声明，但下方硬编码加载 `base_local_planner_params.yaml`，从未引用它。当前硬编码值与 arg 默认值一致，所以传参不生效但也不会出错。若想恢复可配置性，把加载语句的文件名改为 `$(arg local_planner_params)` 即可。
 
-2. **`move_base.launch` 中 `local_planner_params` 参数未被使用** — 该 arg 在第 15 行声明，但下方硬编码加载 `base_local_planner_params.yaml`，从未引用它。当前硬编码值与 arg 默认值一致，所以传参不生效但也不会出错。若想恢复可配置性，把加载语句的文件名改为 `$(arg local_planner_params)` 即可。
-
-3. **代价地图与 TEB 的 footprint 尺寸不一致** — 两处声明的机器人轮廓不同：
+2. **代价地图与 TEB 的 footprint 尺寸不一致** — 两处声明的机器人轮廓不同：
 
    | 位置 | 参数 | 尺寸 |
    |---|---|---|
@@ -156,17 +158,17 @@ roslaunch ucar_navigation move_base.launch method:=teb
 
    TEB 认为车比代价地图认为的大一圈。方向上偏保守（不会撞），但 `inflation_radius: 0.12` 是按 0.26×0.20 调的，窄通道里可能出现代价地图显示能过、TEB 却规划不出路径的情况。建议量出实测尺寸后统一。
 
-4. **`local_costmap_params.yaml` 的 `global_frame` 设为 `map`** — 滚动窗口的局部代价地图通常用 `odom`，用 `map` 会让局部地图随定位跳变而移动。若依赖 `ucar_localization` 平滑发布的 `map→odom`，可能是刻意为之，但值得确认。
+3. **`local_costmap_params.yaml` 的 `global_frame` 设为 `map`** — 滚动窗口的局部代价地图通常用 `odom`，用 `map` 会让局部地图随定位跳变而移动。若依赖 `ucar_localization` 平滑发布的 `map→odom`，可能是刻意为之，但值得确认。
 
-5. **`oscillation_distance: 0.01`** — 默认值为 0.5，此处极小，配合 100 秒的 `oscillation_timeout` 意味着长时间几乎不动就会触发恢复行为。若实际运行中频繁清理代价地图，可从这里排查。
+4. **`oscillation_distance: 0.01`** — 默认值为 0.5，此处极小，配合 100 秒的 `oscillation_timeout` 意味着长时间几乎不动就会触发恢复行为。若实际运行中频繁清理代价地图，可从这里排查。
 
-6. **`scripts/draw_map.py` 与仓库地图不一致** — 脚本用相对路径 `../map/map.pgm` 保存，必须 `cd scripts` 后运行；且生成尺寸为 502×402，而仓库中的 `map.pgm` 是 502×602，说明后者已被手工修改过，重新运行脚本会覆盖丢失。
+5. **`scripts/draw_map.py` 与仓库地图不一致** — 脚本用相对路径 `../map/map.pgm` 保存，必须 `cd scripts` 后运行；且生成尺寸为 502×402，而仓库中的 `map.pgm` 是 502×602，说明后者已被手工修改过，重新运行脚本会覆盖丢失。
 
-7. **`global_costmap_params.yaml` 未定义 `plugins`** — 走 costmap_2d 的默认插件列表，而 `local_costmap_params.yaml` 显式列出了 `obstacle_layer` + `inflation_layer`。行为上正常，但两处写法不一致，容易误读。
+6. **`global_costmap_params.yaml` 未定义 `plugins`** — 走 costmap_2d 的默认插件列表，而 `local_costmap_params.yaml` 显式列出了 `obstacle_layer` + `inflation_layer`。行为上正常，但两处写法不一致，容易误读。
 
-8. **`costmap_common_params.yaml` 末尾的 `map_type: costmap`** — Hydro 之前版本的遗留参数，现代 costmap_2d 已忽略。
+7. **`costmap_common_params.yaml` 末尾的 `map_type: costmap`** — Hydro 之前版本的遗留参数，现代 costmap_2d 已忽略。
 
-9. **`package.xml` 的 `<license>` 仍为 `TODO`** — 公开仓库建议补上明确的许可证。
+8. **`package.xml` 的 `<license>` 仍为 `TODO`** — 公开仓库建议补上明确的许可证。
 
 ## License
 

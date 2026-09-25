@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>ucar_navigation</name>
+  <version>0.0.0</version>
+  <description>The ucar_navigation package</description>
+
+  <maintainer email="yawara@todo.todo">yawara</maintainer>
+
+  <license>TODO</license>
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>amcl</depend>
+  <depend>nav_msgs</depend>
+  <depend>move_base</depend>
+  <depend>teb_local_planner</depend>
+
+  <export>
+  </export>
+</package>

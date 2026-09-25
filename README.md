@@ -90,7 +90,7 @@ roslaunch ucar_navigation navigation.launch
 roslaunch ucar_navigation move_base.launch method:=teb
 ```
 
-`method` 决定两件事：加载 `config/<method>/` 下的参数，以及选择对应的局部规划器插件。取值范围 `teb` / `dwa` / `eband` / `pid` / `mpc`。全局规划器固定为 `global_planner/GlobalPlanner`。
+`method` 决定两件事：加载 `config/<method>/` 下的参数，以及选择对应的局部规划器插件。launch 的 doc 列出 `teb` / `dwa` / `eband` / `pid` / `mpc`，但仓库中只提供了 `config/teb/`，**当前实际只能传 `teb`**（详见「已知问题」）。全局规划器固定为 `global_planner/GlobalPlanner`。
 
 ## 地图文件
 
@@ -128,7 +128,7 @@ roslaunch ucar_navigation move_base.launch method:=teb
 | `obstacle_range` / `raytrace_range` | 3.0 | 障碍物标记 / 清除范围 |
 | `resolution` | 0.01 | 栅格尺寸 |
 
-### TEB 局部规划（`config/teb/base_local_planner_params_test.yaml`）
+### TEB 局部规划（`config/teb/base_local_planner_params.yaml`）
 
 | 参数 | 值 | 说明 |
 |---|---|---|
@@ -143,18 +143,18 @@ roslaunch ucar_navigation move_base.launch method:=teb
 
 以下问题在阅读代码时发现，尚未修改，列在这里供参考：
 
-1. **`move_base.launch` 中 `local_planner_params` 参数无效** — 该参数在 launch 开头定义，但下方实际硬编码加载 `base_local_planner_params_test.yaml`，导致传 `local_planner_params:=xxx` 不生效，且同目录的 `base_local_planner_params.yaml` 永远不会被加载。
+1. **`method` 参数声称支持 5 种规划器，实际只有 `teb` 可用** — `move_base.launch` 中 `method` 的 doc 列出 `mpc, pid, teb, eband, dwa`，参数按 `config/$(arg method)/` 加载；但 `config/` 下只有 `teb/` 一个目录。传其他值会因找不到参数文件而启动失败。要么补齐各规划器的参数目录，要么把 doc 收窄到实际支持的范围。
 
-2. **多个配置文件从未被加载** — `config/teb/` 下的 `base_local_planner_params.yaml`、`base_local_planner_params_omni.yaml`、`costmap_omni.yaml`、`base_global_planner_params.yaml` 没有被任何 launch 引用（相关行均被注释）。`base_local_planner_params.yaml` 与 `_test.yaml` 的差异是速度上限 1.2 vs 1.0、`weight_kinematics_forward_drive` 1000 vs 10 等。
+2. **`move_base.launch` 中 `local_planner_params` 参数未被使用** — 该 arg 在第 15 行声明，但下方硬编码加载 `base_local_planner_params.yaml`，从未引用它。当前硬编码值与 arg 默认值一致，所以传参不生效但也不会出错。若想恢复可配置性，把加载语句的文件名改为 `$(arg local_planner_params)` 即可。
 
 3. **代价地图与 TEB 的 footprint 尺寸不一致** — 两处声明的机器人轮廓不同：
 
    | 位置 | 参数 | 尺寸 |
    |---|---|---|
    | `costmap_common_params.yaml` | `footprint` | 0.26 × 0.20 m |
-   | `base_local_planner_params_test.yaml` | `footprint_model.vertices` | 0.34 × 0.26 m |
+   | `base_local_planner_params.yaml` | `footprint_model.vertices` | 0.34 × 0.26 m |
 
-   TEB 认为车比代价地图认为的大一圈。方向上偏保守（不会撞），但 `inflation_radius: 0.12` 是按 0.26×0.20 调的，窄通道里可能出现代价地图显示能过、TEB 却规划不出路径的情况。建议统一为实测尺寸。
+   TEB 认为车比代价地图认为的大一圈。方向上偏保守（不会撞），但 `inflation_radius: 0.12` 是按 0.26×0.20 调的，窄通道里可能出现代价地图显示能过、TEB 却规划不出路径的情况。建议量出实测尺寸后统一。
 
 4. **`local_costmap_params.yaml` 的 `global_frame` 设为 `map`** — 滚动窗口的局部代价地图通常用 `odom`，用 `map` 会让局部地图随定位跳变而移动。若依赖 `ucar_localization` 平滑发布的 `map→odom`，可能是刻意为之，但值得确认。
 

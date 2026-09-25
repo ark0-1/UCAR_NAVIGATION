@@ -22,15 +22,12 @@
         <param if="$(eval 'dwa' in arg('method'))" name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
         <param if="$(eval 'mpc' in arg('method'))" name="base_local_planner" value="mpc_planner/MPCPlanner"/>
         <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
-        <!-- <rosparam file="$(find ucar_navigation)/config/$(arg method)/costmap_omni.yaml" command="load" ns="global_costmap" />
-        <rosparam file="$(find ucar_navigation)/config/$(arg method)/costmap_omni.yaml" command="load" ns="local_costmap" /> -->
         <rosparam file="$(find ucar_navigation)/config/$(arg method)/costmap_common_params.yaml" command="load" ns="global_costmap" />
         <rosparam file="$(find ucar_navigation)/config/$(arg method)/costmap_common_params.yaml" command="load" ns="local_costmap" />
         <rosparam file="$(find ucar_navigation)/config/$(arg method)/local_costmap_params.yaml" command="load" />
         <rosparam file="$(find ucar_navigation)/config/$(arg method)/global_costmap_params.yaml" command="load" />
         <rosparam file="$(find ucar_navigation)/config/$(arg method)/move_base_params.yaml" command="load" />
-        <!-- <rosparam file="$(find ucar_navigation)/config/$(arg method)/base_local_planner_params_omni.yaml" command="load" /> -->
-        <rosparam file="$(find ucar_navigation)/config/$(arg method)/base_local_planner_params_test.yaml" command="load" />
+        <rosparam file="$(find ucar_navigation)/config/$(arg method)/base_local_planner_params.yaml" command="load" />
 
         <remap from="cmd_vel" to="$(arg cmd_vel_topic)"/>
         <remap from="odom" to="$(arg odom_topic)"/>

@@ -143,32 +143,36 @@ roslaunch ucar_navigation move_base.launch cmd_vel_topic:=/cmd_vel odom_topic:=/
 | `weight_obstacle` | 70.0 | 避障权重 |
 | `weight_optimaltime` | 28 | 时间最优权重 |
 
+#### 关于两处 footprint 尺寸不同（**刻意为之，勿"统一"**）
+
+代价地图声明 0.26 × 0.20 m，TEB 声明 0.34 × 0.26 m，两者不一致是设计选择：
+
+| | 尺寸 | 内切半径 | 作用 |
+|---|---|---|---|
+| 代价地图 `footprint` | 0.26 × 0.20 | 0.10 m | 决定膨胀与可通行区域 |
+| TEB `footprint_model` | 0.34 × 0.26 | 0.13 m | 决定实际碰撞校验 |
+
+代价地图用**偏小**的轮廓，配合 `inflation_radius: 0.12`（仅略大于内切半径 0.10），窄通道不会被膨胀堵死，全局规划器仍有解；TEB 用**偏大**的轮廓叠加 `min_obstacle_dist: 0.07`，中心到障碍物实际保持约 0.20 m 净空，比代价地图的 0.12 m 更保守，由它兜底防撞。
+
+即「代价地图放宽保证可规划、TEB 收紧保证不碰撞」的分工。若把两处统一成 0.26 × 0.20，窄通道反而可能被膨胀到规划不出路径；统一成 0.34 × 0.26 则会牺牲通过性。
+
 ## 已知问题
 
 以下问题在阅读代码时发现，尚未修改，列在这里供参考：
 
 1. **`move_base.launch` 中 `local_planner_params` 参数未被使用** — 该 arg 已声明，但下方硬编码加载 `base_local_planner_params.yaml`，从未引用它。当前硬编码值与 arg 默认值一致，所以传参不生效但也不会出错。若想恢复可配置性，把加载语句的文件名改为 `$(arg local_planner_params)` 即可。
 
-2. **代价地图与 TEB 的 footprint 尺寸不一致** — 两处声明的机器人轮廓不同：
+2. **`local_costmap_params.yaml` 的 `global_frame` 设为 `map`** — 滚动窗口的局部代价地图通常用 `odom`，用 `map` 会让局部地图随定位跳变而移动。若依赖 `ucar_localization` 平滑发布的 `map→odom`，可能是刻意为之，但值得确认。
 
-   | 位置 | 参数 | 尺寸 |
-   |---|---|---|
-   | `costmap_common_params.yaml` | `footprint` | 0.26 × 0.20 m |
-   | `base_local_planner_params.yaml` | `footprint_model.vertices` | 0.34 × 0.26 m |
+3. **`oscillation_distance: 0.01`** — 默认值为 0.5，此处极小，配合 100 秒的 `oscillation_timeout` 意味着长时间几乎不动就会触发恢复行为。若实际运行中频繁清理代价地图，可从这里排查。
 
-   TEB 认为车比代价地图认为的大一圈。方向上偏保守（不会撞），但 `inflation_radius: 0.12` 是按 0.26×0.20 调的，窄通道里可能出现代价地图显示能过、TEB 却规划不出路径的情况。建议量出实测尺寸后统一。
+4. **`scripts/draw_map.py` 与仓库地图不一致** — 脚本用相对路径 `../map/map.pgm` 保存，必须 `cd scripts` 后运行；且生成尺寸为 502×402，而仓库中的 `map.pgm` 是 502×602，说明后者已被手工修改过，重新运行脚本会覆盖丢失。
 
-3. **`local_costmap_params.yaml` 的 `global_frame` 设为 `map`** — 滚动窗口的局部代价地图通常用 `odom`，用 `map` 会让局部地图随定位跳变而移动。若依赖 `ucar_localization` 平滑发布的 `map→odom`，可能是刻意为之，但值得确认。
+5. **`global_costmap_params.yaml` 未定义 `plugins`** — 走 costmap_2d 的默认插件列表，而 `local_costmap_params.yaml` 显式列出了 `obstacle_layer` + `inflation_layer`。行为上正常，但两处写法不一致，容易误读。
 
-4. **`oscillation_distance: 0.01`** — 默认值为 0.5，此处极小，配合 100 秒的 `oscillation_timeout` 意味着长时间几乎不动就会触发恢复行为。若实际运行中频繁清理代价地图，可从这里排查。
+6. **`costmap_common_params.yaml` 末尾的 `map_type: costmap`** — Hydro 之前版本的遗留参数，现代 costmap_2d 已忽略。
 
-5. **`scripts/draw_map.py` 与仓库地图不一致** — 脚本用相对路径 `../map/map.pgm` 保存，必须 `cd scripts` 后运行；且生成尺寸为 502×402，而仓库中的 `map.pgm` 是 502×602，说明后者已被手工修改过，重新运行脚本会覆盖丢失。
-
-6. **`global_costmap_params.yaml` 未定义 `plugins`** — 走 costmap_2d 的默认插件列表，而 `local_costmap_params.yaml` 显式列出了 `obstacle_layer` + `inflation_layer`。行为上正常，但两处写法不一致，容易误读。
-
-7. **`costmap_common_params.yaml` 末尾的 `map_type: costmap`** — Hydro 之前版本的遗留参数，现代 costmap_2d 已忽略。
-
-8. **`package.xml` 的 `<license>` 仍为 `TODO`** — 公开仓库建议补上明确的许可证。
+7. **`package.xml` 的 `<license>` 仍为 `TODO`** — 公开仓库建议补上明确的许可证。
 
 ## License
 
